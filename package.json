@@ -1,0 +1,11 @@
+{
+  "name": "smart-scheduler",
+  "version": "1.0.0",
+  "description": "Auto-schedules tasks into your calendar and re-plans when you fall behind.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\"",
+    "start": "node server.js",
+    "build:extension": "node scripts/build-extension.js"
+  }
+}

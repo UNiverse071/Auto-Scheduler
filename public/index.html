@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Smart Scheduler</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3Cpath d='M9 17l5 5 9-11' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">✓</span>
+      <h1>Smart Scheduler</h1>
+    </div>
+    <div class="topbar-right">
+      <span id="clock" class="clock" aria-live="off"></span>
+      <span id="sync" class="sync" role="status" hidden></span>
+      <button id="export" class="btn full-only" type="button">Export to calendar (.ics)</button>
+      <button id="open-full" class="btn popup-only" type="button">Open full planner</button>
+      <span id="user" class="user" hidden>
+        <span id="user-name"></span>
+        <button id="signout" class="link" type="button">Sign out</button>
+      </span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar" aria-label="Tasks and settings">
+      <section class="card">
+        <h2>Add a task</h2>
+        <form id="task-form" class="stack">
+          <label>What needs doing?
+            <input name="title" required maxlength="80" placeholder="e.g. Write project report" autocomplete="off">
+          </label>
+          <fieldset class="row">
+            <legend>How long will it take?</legend>
+            <label class="inline"><input name="hours" type="number" min="0" max="200" value="2" inputmode="numeric"> hours</label>
+            <label class="inline"><input name="minutes" type="number" min="0" max="59" step="5" value="0" inputmode="numeric"> min</label>
+          </fieldset>
+          <div class="row">
+            <label>How important is it?
+              <select name="importance">
+                <option value="5">5 · Critical</option>
+                <option value="4">4 · High</option>
+                <option value="3" selected>3 · Normal</option>
+                <option value="2">2 · Low</option>
+                <option value="1">1 · Someday</option>
+              </select>
+            </label>
+            <label>Deadline
+              <input name="deadline" type="date" title="Optional">
+            </label>
+          </div>
+          <button class="btn primary" type="submit">Schedule it</button>
+          <p class="form-error" id="task-error" role="alert" hidden></p>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Tasks</h2>
+        <ul id="task-list" class="task-list"></ul>
+        <p id="task-empty" class="muted" hidden>Nothing yet. Add a task above, or <button id="demo" class="link" type="button">load a few examples</button>.</p>
+      </section>
+
+      <details class="card full-only">
+        <summary>Planning style</summary>
+        <form id="policy-form" class="stack">
+          <div class="chips" id="presets" role="group" aria-label="Ready-made styles">
+            <button class="chip" type="button" data-preset="balanced">Balanced</button>
+            <button class="chip" type="button" data-preset="deadline">Deadline-driven</button>
+            <button class="chip" type="button" data-preset="importance">Importance first</button>
+            <button class="chip" type="button" data-preset="early">Finish early</button>
+          </div>
+          <label>What should come first?
+            <input name="priorityWeight" type="range" min="0" max="100" step="5">
+            <span class="range-labels"><span>Deadlines</span><span>Importance</span></span>
+          </label>
+          <label class="inline"><input name="protectDeadlines" type="checkbox"> Always do work that is due today first</label>
+          <label>How to spread the work
+            <select name="spread">
+              <option value="even">Evenly, until the deadline</option>
+              <option value="asap">As early as possible</option>
+            </select>
+          </label>
+          <p id="policy-explain" class="muted small"></p>
+          <button class="btn" type="submit">Apply &amp; re-plan</button>
+        </form>
+      </details>
+
+      <details class="card full-only">
+        <summary>Days off</summary>
+        <form id="dayoff-form" class="stack">
+          <div class="row">
+            <label>From <input name="from" type="date" required></label>
+            <label>To <span class="muted small">(optional)</span> <input name="to" type="date"></label>
+          </div>
+          <label>Note <input name="label" placeholder="Holiday, doctor…" maxlength="40" autocomplete="off"></label>
+          <button class="btn" type="submit">Take the day(s) off</button>
+          <p class="form-error" id="dayoff-error" role="alert" hidden></p>
+        </form>
+        <ul id="dayoff-list" class="task-list"></ul>
+      </details>
+
+      <details class="card full-only">
+        <summary>Busy times (meetings, classes…)</summary>
+        <form id="busy-form" class="stack">
+          <label>Title <input name="title" placeholder="Team meeting" maxlength="60" autocomplete="off"></label>
+          <label>Date <input name="date" type="date" required></label>
+          <div class="row">
+            <label>From <input name="from" type="time" value="13:00" required></label>
+            <label>To <input name="to" type="time" value="14:00" required></label>
+          </div>
+          <button class="btn" type="submit">Block this time</button>
+          <p class="form-error" id="busy-error" role="alert" hidden></p>
+        </form>
+        <ul id="busy-list" class="task-list"></ul>
+      </details>
+
+      <details class="card full-only">
+        <summary>Working hours &amp; session sizes</summary>
+        <form id="settings-form" class="stack">
+          <div class="row">
+            <label>Day starts <input name="workStart" type="time" required></label>
+            <label>Day ends <input name="workEnd" type="time" required></label>
+          </div>
+          <fieldset class="days">
+            <legend>Work days</legend>
+            <label><input type="checkbox" name="day" value="1">Mon</label>
+            <label><input type="checkbox" name="day" value="2">Tue</label>
+            <label><input type="checkbox" name="day" value="3">Wed</label>
+            <label><input type="checkbox" name="day" value="4">Thu</label>
+            <label><input type="checkbox" name="day" value="5">Fri</label>
+            <label><input type="checkbox" name="day" value="6">Sat</label>
+            <label><input type="checkbox" name="day" value="0">Sun</label>
+          </fieldset>
+          <div class="row">
+            <label>Longest session (min) <input name="maxBlockMin" type="number" min="5" step="5" required></label>
+            <label>Shortest session (min) <input name="minBlockMin" type="number" min="5" step="5" required></label>
+          </div>
+          <div class="row">
+            <label>Break after (min) <input name="breakMin" type="number" min="0" step="5" required></label>
+            <label>Max work per day (min) <input name="maxDailyMin" type="number" min="15" step="15" required></label>
+          </div>
+          <button class="btn" type="submit">Save &amp; re-plan</button>
+          <p class="form-error" id="settings-error" role="alert" hidden></p>
+        </form>
+      </details>
+
+      <details class="card full-only">
+        <summary>Time travel (to try the end-of-day report)</summary>
+        <p class="muted small">Pretend it is a different moment. Handy for seeing how the plan reacts when a session passes.</p>
+        <form id="clock-form" class="stack">
+          <label>Pretend it is <input name="when" type="datetime-local" required></label>
+          <div class="row">
+            <button class="btn" type="submit">Jump</button>
+            <button class="btn" id="clock-reset" type="button">Back to real time</button>
+          </div>
+        </form>
+      </details>
+    </aside>
+
+    <main class="main">
+      <section id="advice" class="advice" aria-live="polite" hidden></section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Today</h2>
+          <span id="today-summary" class="muted small"></span>
+        </div>
+        <div id="today"></div>
+      </section>
+
+      <section class="card full-only">
+        <div class="card-head">
+          <h2 id="week-title">Week</h2>
+          <div class="week-nav">
+            <button class="btn small" id="week-prev" type="button" aria-label="Previous week">‹</button>
+            <button class="btn small" id="week-today" type="button">This week</button>
+            <button class="btn small" id="week-next" type="button" aria-label="Next week">›</button>
+          </div>
+        </div>
+        <div id="week" class="week" role="group" aria-label="Weekly calendar"></div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="auth-dialog">
+    <form id="auth-form" class="stack">
+      <h3>Smart Scheduler</h3>
+      <p class="muted" id="auth-intro">Sign in to get your own plan, saved to your account.</p>
+      <div class="tabs" role="tablist">
+        <button class="tab" type="button" role="tab" id="tab-login" aria-selected="true">Sign in</button>
+        <button class="tab" type="button" role="tab" id="tab-register" aria-selected="false">Create account</button>
+      </div>
+      <label>Username <input name="username" autocomplete="username" required minlength="3" maxlength="32" autocapitalize="none" spellcheck="false"></label>
+      <label>Password <input name="password" type="password" autocomplete="current-password" required minlength="8" maxlength="200"></label>
+      <label class="ext-only">Server address
+        <input name="server" type="url" placeholder="http://localhost:5173" spellcheck="false">
+        <span class="muted small">Where your Smart Scheduler server runs (<code>npm start</code>).</span>
+      </label>
+      <button class="btn primary" type="submit" id="auth-submit">Sign in</button>
+      <p class="form-error" id="auth-error" role="alert" hidden></p>
+      <p class="muted small" id="auth-hint"></p>
+    </form>
+  </dialog>
+
+  <dialog id="report-dialog">
+    <form method="dialog" id="report-form" class="stack">
+      <h3 id="report-title">How did it go?</h3>
+      <p id="report-when" class="muted"></p>
+      <div class="chips" role="group" aria-label="Quick answers">
+        <button class="chip" type="button" data-fill="full">✓ Finished it all</button>
+        <button class="chip" type="button" data-fill="half">◐ About half</button>
+        <button class="chip" type="button" data-fill="none">✗ Didn't get to it</button>
+      </div>
+      <label>Work I got done (minutes) <input name="completed" type="number" min="0" step="5" required></label>
+      <label>Time I actually spent (minutes) <input name="spent" type="number" min="0" step="5" required></label>
+      <p class="muted small">Took longer than planned? Enter the real time you spent - the scheduler uses it to learn your pace.</p>
+      <div class="dialog-actions">
+        <button class="btn" type="button" id="report-cancel">Cancel</button>
+        <button class="btn primary" type="submit">Save report</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="task-dialog">
+    <form method="dialog" id="edit-form" class="stack">
+      <h3>Edit task</h3>
+      <label>Title <input name="title" required maxlength="80"></label>
+      <label>Total estimate (minutes) <input name="estimate" type="number" min="5" step="5" required></label>
+      <div class="row">
+        <label>Importance
+          <select name="importance">
+            <option value="5">5 · Critical</option>
+            <option value="4">4 · High</option>
+            <option value="3">3 · Normal</option>
+            <option value="2">2 · Low</option>
+            <option value="1">1 · Someday</option>
+          </select>
+        </label>
+        <label>Deadline <input name="deadline" type="date"></label>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn" type="button" id="edit-cancel">Cancel</button>
+        <button class="btn primary" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
